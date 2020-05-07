@@ -19,13 +19,12 @@
 
 package com.microsoft.azure.cosmosdb.sql.jsonstoreimport;
 
+import com.azure.cosmos.internal.Document;
 import com.google.gson.Gson;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.sdkextensions.AdlStoreClientExtension;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.sdkextensions.AzureBlobClientExtension;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.sdkextensions.CosmosDbSqlClientExtension;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.source.JsonStoreEntity;
-import com.microsoft.azure.documentdb.Document;
-import com.microsoft.azure.documentdb.DocumentClientException;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.URLEncoder;
@@ -45,8 +44,7 @@ public class ImportQueue {
     this.queueWriter = queueWriter;
   }
 
-  public List<ImportWorkItem> getPartitionImportWorkItems(String partitionId)
-      throws DocumentClientException {
+  public List<ImportWorkItem> getPartitionImportWorkItems(String partitionId) {
     List<ImportWorkItem> partitionFilesList = new ArrayList<>();
     // TODO: What to do about abandoned files where isInProgress = true?
     String query =
@@ -91,8 +89,7 @@ public class ImportQueue {
   }
 
   @SuppressWarnings("deprecation")
-  private void pushItemsToCosmosDb(List<String> queueItems, StoreType storeType, String operation)
-      throws DocumentClientException {
+  private void pushItemsToCosmosDb(List<String> queueItems, StoreType storeType, String operation) {
 
     logger.info(String.format("Inserting %d files into Cosmos DB work queue", queueItems.size()));
     for (int i = 0; i < queueItems.size(); i++) {
@@ -129,7 +126,7 @@ public class ImportQueue {
 
   private void pushItemsToCosmosDbByPartitionId(
       List<String> queueItemsByPartition, StoreType storeType, String operation)
-      throws DocumentClientException, IOException {
+      throws IOException {
 
     logger.info(
         String.format(
@@ -218,7 +215,7 @@ public class ImportQueue {
     return claimsList;
   }
 
-  ImportWorkItem popEntity() throws DocumentClientException {
+  ImportWorkItem popEntity() {
     while (true) {
       // TODO: What to do about abandoned files where isInProgress = true?
       List<Document> docs =

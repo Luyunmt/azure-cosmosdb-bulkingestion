@@ -19,26 +19,28 @@
 
 package com.microsoft.azure.cosmosdb.sql.jsonstoreimport.sdkextensions;
 
-import static com.microsoft.azure.documentdb.ConnectionPolicy.GetDefault;
-
-import com.microsoft.azure.documentdb.AccessCondition;
-import com.microsoft.azure.documentdb.AccessConditionType;
-import com.microsoft.azure.documentdb.ConnectionPolicy;
-import com.microsoft.azure.documentdb.ConsistencyLevel;
-import com.microsoft.azure.documentdb.Database;
-import com.microsoft.azure.documentdb.Document;
-import com.microsoft.azure.documentdb.DocumentClient;
-import com.microsoft.azure.documentdb.DocumentClientException;
-import com.microsoft.azure.documentdb.DocumentCollection;
-import com.microsoft.azure.documentdb.FeedOptions;
-import com.microsoft.azure.documentdb.FeedResponse;
-import com.microsoft.azure.documentdb.Offer;
-import com.microsoft.azure.documentdb.PartitionKeyDefinition;
-import com.microsoft.azure.documentdb.RequestOptions;
-import com.microsoft.azure.documentdb.ResourceResponse;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+import com.azure.cosmos.AccessCondition;
+import com.azure.cosmos.AccessConditionType;
+import com.azure.cosmos.ConnectionPolicy;
+import com.azure.cosmos.ConsistencyLevel;
+import com.azure.cosmos.CosmosClient;
+import com.azure.cosmos.CosmosClientException;
+import com.azure.cosmos.CosmosContainer;
+import com.azure.cosmos.CosmosContainerProperties;
+import com.azure.cosmos.CosmosContainerRequestOptions;
+import com.azure.cosmos.CosmosContainerResponse;
+import com.azure.cosmos.CosmosDatabase;
+import com.azure.cosmos.FeedResponse;
+import com.azure.cosmos.internal.Document;
+import com.azure.cosmos.internal.DocumentCollection;
+import com.azure.cosmos.internal.Offer;
+import com.azure.cosmos.internal.RequestOptions;
+import com.azure.cosmos.internal.ResourceResponse;
+
 import org.apache.http.HttpStatus;
 import org.apache.log4j.Logger;
 
@@ -49,7 +51,7 @@ public class CosmosDbSqlClientExtension {
   private final String databaseName;
   private final String collectionName;
   private final Integer throughput;
-  private DocumentClient documentClient;
+  private CosmosContainer  documentClient;
 
   public CosmosDbSqlClientExtension(
       String endPoint,
@@ -73,11 +75,14 @@ public class CosmosDbSqlClientExtension {
     }
 
     if (consistencyLevel == null) {
-      consistencyLevel = ConsistencyLevel.Session;
+      consistencyLevel = ConsistencyLevel.SESSION;
     }
-
-    this.documentClient =
-        new DocumentClient(endPoint, masterKey, connectionPolicy, consistencyLevel);
+    CosmosClient cosmosClient = CosmosClient.builder().setConnectionPolicy(connectionPolicy)
+    .setConsistencyLevel(consistencyLevel)
+    .setEndpoint(endPoint)
+    .setKey(masterKey)
+    .buildClient();
+    this.documentClient =createNewCollection(cosmosClient, databaseName, collectionName);
   }
 
   public String getDatabaseName() {
@@ -88,13 +93,13 @@ public class CosmosDbSqlClientExtension {
     return collectionName;
   }
 
-  public DocumentClient getDocumentClient() {
+  public CosmosContainer getDocumentClient() {
     return documentClient;
   }
 
   public int getOfferThroughput() throws Exception {
     FeedResponse<Offer> offers =
-        this.documentClient.queryOffers(
+        this.documentClient.queryChangeFeedItems(
             String.format(
                 "SELECT * FROM c where c.offerResourceId = '%s'", getCollection().getResourceId()),
             null);
@@ -108,7 +113,7 @@ public class CosmosDbSqlClientExtension {
     return offer.getContent().getInt("offerThroughput");
   }
 
-  public DocumentCollection getCollection() throws DocumentClientException {
+  public DocumentCollection getCollection() {
     String collectionLink =
         String.format("/dbs/%s/colls/%s", this.databaseName, this.collectionName);
     ResourceResponse<DocumentCollection> resourceResponse;
@@ -116,7 +121,7 @@ public class CosmosDbSqlClientExtension {
     return resourceResponse.getResource();
   }
 
-  public void createDatabaseIfNotExists() throws DocumentClientException {
+  public void createDatabaseIfNotExists() {
     try {
       String dbLink = String.format("/dbs/%s", this.databaseName);
       ResourceResponse<Database> resourceResponse;
@@ -172,7 +177,7 @@ public class CosmosDbSqlClientExtension {
         .getResource();
   }
 
-  public Document createDocument(Document doc) throws DocumentClientException {
+  public Document createDocument(Document doc) {
 
     try {
       return this.documentClient
@@ -188,7 +193,7 @@ public class CosmosDbSqlClientExtension {
     }
   }
 
-  public List<Document> queryDocs(String query) throws DocumentClientException {
+  public List<Document> queryDocs(String query) {
 
     List<Document> docs = new ArrayList<Document>();
     FeedOptions options = new FeedOptions();
@@ -206,9 +211,9 @@ public class CosmosDbSqlClientExtension {
     return docs;
   }
 
-  public Document updateItem(Document doc, String jsonDoc) throws DocumentClientException {
+  public Document updateItem(Document doc, String jsonDoc) {
     AccessCondition condition = new AccessCondition();
-    condition.setType(AccessConditionType.IfMatch);
+    condition.setType(AccessConditionType.IF_MATCH);
     condition.setCondition(doc.getETag());
 
     RequestOptions options = new RequestOptions();
@@ -230,4 +235,36 @@ public class CosmosDbSqlClientExtension {
     }
     documentClient = null;
   }
+
+  public static CosmosContainer createNewCollection(CosmosClient client, String databaseName, String collectionName)
+      throws CosmosClientException {
+    CosmosDatabase databaseLink = client.getDatabase(databaseName);
+    CosmosContainer collectionLink = databaseLink.getContainer(collectionName);
+    CosmosContainerResponse containerResponse = null;
+    try {
+        containerResponse = collectionLink.read();
+        if (containerResponse != null) {
+            throw new IllegalArgumentException(
+                    String.format("Collection %s already exists in database %s.", collectionName, databaseName));
+        }
+    } catch (RuntimeException ex) {
+        if (ex.getCause() instanceof CosmosClientException) {
+            CosmosClientException cosmosClientException = (CosmosClientException) ex.getCause();
+            if (cosmosClientException.getStatusCode() != 404) {
+                throw ex;
+            }
+        } else {
+            throw ex;
+        }
+    }
+    CosmosContainerProperties containerSettings = new CosmosContainerProperties(collectionName, "/id");
+    CosmosContainerRequestOptions requestOptions = new CosmosContainerRequestOptions();
+    containerResponse = databaseLink.createContainer(containerSettings, 10000, requestOptions);
+    if (containerResponse == null) {
+        throw new RuntimeException(
+                String.format("Failed to create collection %s in database %s.", collectionName, databaseName));
+    }
+    return containerResponse.getContainer();
+}
+
 }

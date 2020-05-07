@@ -19,6 +19,8 @@
 
 package com.microsoft.azure.cosmosdb.sql.jsonstoreimport;
 
+import com.azure.cosmos.ConnectionPolicy;
+import com.azure.cosmos.PartitionKeyDefinition;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.runnables.PartitionIngestionRunnable;
@@ -29,16 +31,7 @@ import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.source.JsonStoreEntity;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.source.JsonStoreEntityImportResponse;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.source.JsonStoreReader;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.source.ScaleTestReader;
-import com.microsoft.azure.documentdb.ConnectionPolicy;
-import com.microsoft.azure.documentdb.ConsistencyLevel;
-import com.microsoft.azure.documentdb.Document;
-import com.microsoft.azure.documentdb.DocumentClientException;
-import com.microsoft.azure.documentdb.DocumentCollection;
-import com.microsoft.azure.documentdb.PartitionKeyDefinition;
-import com.microsoft.azure.documentdb.RetryOptions;
-import com.microsoft.azure.documentdb.internal.routing.PartitionKeyInternal;
-import com.microsoft.azure.documentdb.internal.routing.PartitionKeyInternalHelper;
-import com.microsoft.azure.documentdb.internal.routing.Range;
+
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -55,13 +48,13 @@ class ImportExecutor {
   private final Logger logger = Logger.getLogger(ImportExecutor.class);
   private CosmosDbSqlClientExtension importTrackingClient;
   private CosmosDbSqlClientExtension ingestionClient;
-  private com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor bulkImporter;
+  private DocumentBulkExecutor bulkImporter;
   private PartitionKeyDefinition cosmosDbPartitionKeyDefinition = null;
   private int cosmosDbImportMaxMiniBatchSizeInBytes =
       Settings.getCosmosDbImportMiniBatchMaxSizeInBytes();
   private Gson gson = new Gson();
 
-  ImportExecutor(boolean isTrackingRequired) throws DocumentClientException {
+  ImportExecutor(boolean isTrackingRequired)  {
 
     if (isTrackingRequired) {
       initImportTrackingClient();
@@ -237,7 +230,7 @@ class ImportExecutor {
     cosmosDbPartitionKeyDefinition = retrievedCollection.getPartitionKey();
   }
 
-  private void initImportTrackingClient() throws DocumentClientException {
+  private void initImportTrackingClient() {
     if (this.importTrackingClient != null) {
       return;
     }

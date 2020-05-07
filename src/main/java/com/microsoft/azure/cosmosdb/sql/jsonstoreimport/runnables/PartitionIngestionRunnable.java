@@ -54,8 +54,7 @@ public class PartitionIngestionRunnable implements Runnable {
   public PartitionIngestionRunnable(
       DocumentBulkExecutor bulkImporter,
       ImportWorkItem importWorkItem,
-      CosmosDbSqlClientExtension importTrackingClient)
-      throws DocumentClientException {
+      CosmosDbSqlClientExtension importTrackingClient) {
     this.bulkImporter = bulkImporter;
     this.importWorkItem = importWorkItem;
     this.importTrackingClient = importTrackingClient;

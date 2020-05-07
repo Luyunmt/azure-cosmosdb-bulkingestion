@@ -19,8 +19,8 @@
 
 package com.microsoft.azure.cosmosdb.sql.jsonstoreimport;
 
+import com.azure.cosmos.internal.Document;
 import com.microsoft.azure.cosmosdb.sql.jsonstoreimport.source.JsonStoreEntity;
-import com.microsoft.azure.documentdb.Document;
 
 /** Represents work item */
 public class ImportWorkItem {
